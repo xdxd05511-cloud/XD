@@ -1,54 +1,38 @@
+const { Client } = require('discord.js-selfbot-v13');
 const express = require('express');
-const axios = require("axios");
-
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => {
-  res.send("Bot ordusu güncellendi: Çoklu Kanal + Tek Mesaj Aktif!");
-});
+app.get("/", (req, res) => res.send("Sistem Aktif ve Beklemede..."));
+app.listen(process.env.PORT || 10000);
 
-app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda dinleniyor.`);
-});
+const tokensRaw = process.env.TOKENS;
+const channelId = process.env.CHANNEL_ID;
 
-// Değişkenleri Render'dan çekiyoruz
-const tokensRaw = process.env.TOKENS; 
-const channelIdsRaw = process.env.CHANNEL_IDS; 
-const message = process.env.MESSAGE;
+if (tokensRaw && channelId) {
+    const tokenList = tokensRaw.split(/[\s,]+/).filter(t => t.length > 25);
+    
+    tokenList.forEach((token, index) => {
+        // Gecikmeyi 30 saniyeye çıkardık (Aşırı önemli)
+        setTimeout(() => {
+            const client = new Client({ checkUpdate: false });
 
-if (!tokensRaw || !channelIdsRaw || !message) {
-    console.error("HATA: Environment (TOKENS, CHANNEL_IDS veya MESSAGE) eksik!");
-} else {
-    // Virgülle ayrılmış metinleri listeye çeviriyoruz
-    const tokens = tokensRaw.split(",").map(t => t.trim());
-    const channelIds = channelIdsRaw.split(",").map(c => c.trim());
+            client.on('ready', async () => {
+                console.log(`✅ [Bot ${index + 1}] Giriş Yaptı: ${client.user.tag}`);
+                try {
+                    const channel = await client.channels.fetch(channelId);
+                    if (channel) {
+                        await client.voice.joinChannel(channel, { selfMute: true, selfDeaf: true });
+                        console.log(`🔊 [Bot ${index + 1}] Sese Girdi.`);
+                    }
+                } catch (e) {
+                    console.log(`❌ [Bot ${index + 1}] Ses Hatası.`);
+                }
+            });
 
-    // Her 20 saniyede bir döngü başlar (Hız sınırı için süreyi biraz açtık)
-    setInterval(() => {
-        tokens.forEach((token, index) => {
-            // Her hesap arasına 1.5 saniye fark koyarak gönderiyoruz
-            setTimeout(() => {
-                // 3 kanaldan birini rastgele seçiyoruz
-                const randomChannel = channelIds[Math.floor(Math.random() * channelIds.length)];
-                
-                sendMessage(token, randomChannel, message);
-            }, index * 1500); 
-        });
-    }, 20000); 
-}
-
-function sendMessage(token, channelId, message) {
-  axios.post(`https://discord.com/api/v9/channels/${channelId}/messages`, {
-    content: message
-  }, {
-    headers: {
-      "Authorization": token,
-      "Content-Type": "application/json"
-    }
-  }).then(() => {
-    console.log(`✅ Mesaj Gönderildi | Kanal: ${channelId} | Token: ${token.substring(0, 10)}...`);
-  }).catch((err) => {
-    console.error(`❌ Hata Oluştu (${err.response?.status}) | Kanal: ${channelId}`);
-  });
+            // Tarayıcı gibi görünerek girişi gizle
+            client.login(token).catch(() => {
+                console.log(`⚠️ [Bot ${index + 1}] Giriş Reddedildi! (Hesap kilitli veya IP banlı)`);
+            });
+        }, index * 30000); 
+    });
 }
